@@ -228,6 +228,12 @@ The test suite covers valid, modified, expired, and future Mini App sessions; di
 
 This starter intentionally omits a live bot token, hosted backend, database, analytics identifiers, and production product logic. Example names and activity are local demo data.
 
+## Related work
+
+- [baggy-telegram-bot](https://github.com/0xENTYPER/baggy-telegram-bot) shows a product-specific Telegram discovery and launch workflow.
+- [stripe-web3-entitlements](https://github.com/0xENTYPER/stripe-web3-entitlements) covers durable paid access behind an authenticated client.
+- [Baggy](https://github.com/0xENTYPER/baggy) provides the wider multi-chain product context.
+
 ## Author
 
 Built by [0xENTYPER](https://github.com/0xENTYPER).
