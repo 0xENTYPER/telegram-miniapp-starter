@@ -6,11 +6,30 @@
 
 ![Telegram](https://img.shields.io/badge/Telegram-Mini_App-229ED9) ![Frontend](https://img.shields.io/badge/UI-mobile_first-17B85A) ![Security](https://img.shields.io/badge/initData-server_verified-111827) ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6)
 
+[![CI](https://github.com/0xENTYPER/telegram-miniapp-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/0xENTYPER/telegram-miniapp-starter/actions/workflows/ci.yml)
+
 </div>
 
 This starter demonstrates the full interaction boundary around a Telegram product: a native-feeling mobile interface, Telegram theme and viewport integration, backend `initData` verification, and commands that continue to work when the bot is added to a group.
 
 The included **Creator Desk** is a real browser-runnable interface, not a static mockup. It works in Telegram and provides a preview mode during local development.
+
+<p align="center">
+  <img src="docs/miniapp-preview.png" width="390" alt="Creator Desk Mini App running from the repository" />
+</p>
+
+<p align="center"><sub>Real local Vite build rendered in Chromium. No design mock or fabricated chat screenshot.</sub></p>
+
+## At a glance
+
+| Layer | Included | Design intent |
+| --- | --- | --- |
+| Mini App UI | Three working views and responsive navigation | The first screen is the product, not a landing page |
+| Telegram bridge | Theme, viewport, lifecycle, haptics | Feels native without coupling every component to Telegram |
+| Session boundary | Server-side `initData` HMAC and age checks | Client profile data never becomes authorization |
+| Bot router | Private/group copy and `@botname` parsing | One command system behaves correctly in both contexts |
+| Admin policy | Server-side allowlist check | A visible command is not assumed to be permitted |
+| Browser mode | Safe local fallback | Frontend work remains fast outside Telegram |
 
 ## Included
 
@@ -51,6 +70,21 @@ padding-top: max(18px, env(safe-area-inset-top));
 
 This avoids bottom controls jumping with Telegram's animated viewport and prevents fullscreen UI from colliding with device cutouts.
 
+```mermaid
+flowchart LR
+    B[Bundle loaded] --> T{Telegram bridge present?}
+    T -->|yes| R[ready + expand]
+    T -->|no| P[Browser preview mode]
+    R --> H[Apply theme variables]
+    R --> V[Track stable viewport]
+    H --> U[Render product UI]
+    V --> U
+    P --> U
+    U --> A[Home / Activity / Profile]
+```
+
+The bridge in [`src/telegram.ts`](src/telegram.ts) is an adapter rather than a global dependency. UI code can request haptics or read context without scattering Telegram existence checks across components.
+
 ## Authentication boundary
 
 `initDataUnsafe` helps render a fast greeting, but it is not authorization. The client sends the untouched `Telegram.WebApp.initData` string to the server. [`server/validate-init-data.ts`](server/validate-init-data.ts) then:
@@ -63,6 +97,24 @@ This avoids bottom controls jumping with Telegram's animated viewport and preven
 6. parses user data only after integrity succeeds.
 
 Never ship the bot token in frontend code.
+
+```mermaid
+sequenceDiagram
+    participant T as Telegram client
+    participant M as Mini App
+    participant API as Application API
+    participant S as Session store
+
+    T->>M: Signed initData
+    M->>API: Untouched initData string
+    API->>API: Verify HMAC + auth_date
+    alt Valid and recent
+        API->>S: Create application session
+        API-->>M: Authenticated response
+    else Modified or expired
+        API-->>M: 401
+    end
+```
 
 ## Commands in chats
 
@@ -79,6 +131,19 @@ In groups, `/status@creator_bot` is accepted while commands addressed to another
 
 Telegram privacy mode can remain enabled for this command-driven design. The bot does not need to read ordinary group conversation.
 
+### Routing rules
+
+| Incoming text | Chat context | Result |
+| --- | --- | --- |
+| `/app` | Private | Return the Mini App action |
+| `/status` | Group | Return group-specific workspace status |
+| `/status@creator_bot` | Group | Handle when mention matches this bot |
+| `/status@another_bot` | Group | Ignore safely |
+| `/sync` | Any | Check user ID against server policy |
+| Normal message | Group with privacy mode | Not required by this architecture |
+
+Command scopes are a discoverability layer. [`bot/commands.ts`](bot/commands.ts) remains the enforcement layer and returns structured responses that a Bot API adapter can turn into text and buttons.
+
 ## UI rationale
 
 - The first viewport is the working product, not a landing page.
@@ -89,6 +154,18 @@ Telegram privacy mode can remain enabled for this command-driven design. The bot
 - Status uses text plus color, never color alone.
 - Motion respects `prefers-reduced-motion`.
 - Cards are limited to the summary; list content remains easy to scan.
+
+### Interface anatomy
+
+| Region | Job | Why it stays simple |
+| --- | --- | --- |
+| Identity header | Establish workspace and refresh context | No promotional hero inside a task surface |
+| Today panel | Present one decisive next action | Avoids competing primary buttons |
+| Progress strip | Make readiness glanceable | Three stable metrics fit one thumb-width row |
+| Workspace list | Expose state and recency | Rows scan faster than nested cards |
+| Bottom navigation | Move between repeated workflows | Three destinations stay predictable |
+
+The interface uses text and color together, stable control dimensions, safe-area padding, and restrained motion. It is intentionally quiet enough for daily operational use.
 
 ## Run locally
 
@@ -121,6 +198,25 @@ npm run preview
 ## Verification
 
 The test suite covers valid, modified, expired, and future Mini App sessions; direct and mentioned commands; cross-bot command isolation; admin authorization; and Mini App action responses. CI also creates the real Vite production bundle.
+
+## Repository map
+
+| Path | Responsibility |
+| --- | --- |
+| [`src/main.ts`](src/main.ts) | Product views, navigation, and interaction state |
+| [`src/styles.css`](src/styles.css) | Mobile layout, Telegram variables, safe areas, reduced motion |
+| [`src/telegram.ts`](src/telegram.ts) | Small client bridge and browser fallback |
+| [`server/validate-init-data.ts`](server/validate-init-data.ts) | Integrity, timestamp, and user parsing boundary |
+| [`bot/commands.ts`](bot/commands.ts) | Mention-aware command routing and authorization |
+| [`test/security.test.ts`](test/security.test.ts) | Session and chat-command threat cases |
+
+## What this case study demonstrates
+
+- building a Telegram-native product surface that remains browser-developable;
+- separating untrusted presentation data from authenticated application sessions;
+- handling private chats, groups, mentions, and admin actions in one router;
+- designing mobile operational UI around safe areas and unstable viewport height;
+- keeping a showcase runnable without publishing tokens or private product logic.
 
 ## References
 
